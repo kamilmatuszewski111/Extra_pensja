@@ -1,59 +1,49 @@
 from bs4 import BeautifulSoup
 from collections import Counter
 
-with open(r"eksta_pensja_html2.html", "r", encoding="utf-8") as file:
-    html_content = file.read()
 
-soup = BeautifulSoup(html_content, "html.parser")
-draw_items = soup.find_all("div", class_="result-item")
-all_draws = []
-
-for draw_item in draw_items:
-    draw_number_tag = draw_item.find("p", class_="result-item__number")
-    if draw_number_tag:
-        draw_number = draw_number_tag.get_text(strip=True)
-    else:
-        continue
-
-    balls_box = draw_item.find("div", class_="result-item__balls-box")
-    if balls_box:
-        numbers = [num.get_text(strip=True) for num in balls_box.find_all("div", class_="scoreline-item")]
-    else:
-        numbers = []
-
-    all_draws.append({
-        "Numer losowania": draw_number,
-        "Liczby": numbers
-    })
-
-ekstra_pensja_liczby = []
-ekstra_pensja_liczba_ekstra = []
-ekstra_premia_liczby = []
-ekstra_premia_liczba_ekstra = []
-for i, j in enumerate(all_draws):
-    if i % 2 == 1:
-        ekstra_premia_liczby.append(j['Liczby'][:5])
-        ekstra_premia_liczba_ekstra.append(j['Liczby'][5:6])
-
-    else:
-        ekstra_pensja_liczby.append(j['Liczby'][:5])
-        ekstra_pensja_liczba_ekstra.append(j['Liczby'][5:6])
+def load_html(filename):
+    with open(filename, "r", encoding="utf-8") as file:
+        return file.read()
 
 
-sum_ekstra_pensja_liczby = [int(num) for sublist in ekstra_pensja_liczby for num in sublist]
-sum_ekstra_pensja_liczba_ekstra = [int(num) for sublist in ekstra_pensja_liczba_ekstra for num in sublist]
-sum_ekstra_premia_liczby = [int(num) for sublist in ekstra_premia_liczby for num in sublist]
-sum_ekstra_premia_liczba_ekstra = [int(num) for sublist in ekstra_premia_liczba_ekstra for num in sublist]
+def extract_draws(html_content):
+    soup = BeautifulSoup(html_content, "html.parser")
+    draws = []
+
+    for draw_item in soup.find_all("div", class_="result-item"):
+        draw_number = draw_item.find("p", class_="result-item__number")
+        numbers = [num.get_text(strip=True) for num in draw_item.find_all("div", class_="scoreline-item")]
+
+        if draw_number and numbers:
+            draws.append({"Numer losowania": draw_number.get_text(strip=True), "Liczby": numbers})
+
+    return draws
 
 
-def percentage_sorted(lista):
-    counter = Counter(lista)
-    total_count = len(lista)
-    percentage_result = {num: round((count / total_count) * 100, 3) for num, count in counter.items()}
-    sorted_percentage_result = dict(sorted(percentage_result.items(), key=lambda item: item[1], reverse=True))
-    print(sorted_percentage_result)
+def split_draws(draws):
+    ekstra_pensja = [(d["Liczby"][:5], d["Liczby"][5:6]) for i, d in enumerate(draws) if i % 2 == 0]
+    ekstra_premia = [(d["Liczby"][:5], d["Liczby"][5:6]) for i, d in enumerate(draws) if i % 2 == 1]
 
-percentage_sorted(sum_ekstra_pensja_liczby)
-percentage_sorted(sum_ekstra_pensja_liczba_ekstra)
-percentage_sorted(sum_ekstra_premia_liczby)
-percentage_sorted(sum_ekstra_premia_liczba_ekstra)
+    return {
+        "ekstra_pensja_liczby": sum([x[0] for x in ekstra_pensja], []),
+        "ekstra_pensja_liczba_ekstra": sum([x[1] for x in ekstra_pensja], []),
+        "ekstra_premia_liczby": sum([x[0] for x in ekstra_premia], []),
+        "ekstra_premia_liczba_ekstra": sum([x[1] for x in ekstra_premia], [])
+    }
+
+
+def percentage_sorted(numbers):
+    counter = Counter(map(int, numbers))
+    total = len(numbers)
+    return dict(
+        sorted({num: round((count / total) * 100, 3) for num, count in counter.items()}.items(), key=lambda x: x[1],
+               reverse=True))
+
+
+html_content = load_html("eksta_pensja_html2.html")
+all_draws = extract_draws(html_content)
+split_data = split_draws(all_draws)
+
+for category, numbers in split_data.items():
+    print(f"{category}: {percentage_sorted(numbers)}")
